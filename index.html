@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Glasses Emergency App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <h1>Glasses Emergency App</h1>
+    <button onclick="connectBluetooth()">Connect to Glasses</button>
+    <p id="status">Status: Disconnected</p>
+
+    <script>
+        let bluetoothDevice;
+
+        async function connectBluetooth() {
+            try {
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'HC-05' }], // Replace with your device name
+                    optionalServices: ['00001101-0000-1000-8000-00805f9b34fb'] // Standard Serial Port UUID
+                });
+
+                const server = await bluetoothDevice.gatt.connect();
+                document.getElementById("status").textContent = "Status: Connected";
+
+                // Listen for data from Arduino
+                const service = await server.getPrimaryService('00001101-0000-1000-8000-00805f9b34fb');
+                const characteristic = await service.getCharacteristic('00001143-0000-1000-8000-00805f9b34fb');
+                
+                characteristic.addEventListener('characteristicvaluechanged', event => {
+                    const data = new TextDecoder().decode(event.target.value);
+                    if (data.includes('ACCIDENT')) handleAccident();
+                });
+                await characteristic.startNotifications();
+            } catch (error) {
+                alert("Error: " + error);
+            }
+        }
+
+        async function handleAccident() {
+            // Get GPS location
+            const position = await new Promise((resolve, reject) => 
+                navigator.geolocation.getCurrentPosition(resolve, reject));
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            // Send SMS
+            window.open(`sms:+123456789&body=Accident detected! Location: https://maps.google.com/?q=${lat},${lng}`);
+
+            // Make a call
+            window.open("tel:+123456789");
+        }
+    </script>
+</body>
+</html>
